@@ -1,0 +1,413 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Slower - BMW Speed Limiter</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+            background: #0a0a0a;
+            color: #e0e0e0;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+        .header {
+            background: #111;
+            padding: 12px 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid #222;
+        }
+        .header h1 { font-size: 20px; font-weight: 700; color: #fff; }
+        .status-dot {
+            width: 10px; height: 10px; border-radius: 50%;
+            display: inline-block; margin-right: 6px;
+        }
+        .status-dot.on { background: #00c853; box-shadow: 0 0 8px #00c853; }
+        .status-dot.off { background: #555; }
+        .status-dot.warn { background: #ff9100; box-shadow: 0 0 8px #ff9100; }
+        .status-dot.error { background: #ff1744; box-shadow: 0 0 8px #ff1744; }
+
+        .speed-display {
+            text-align: center;
+            padding: 24px 16px;
+        }
+        .speed-current {
+            font-size: 72px;
+            font-weight: 800;
+            line-height: 1;
+            font-variant-numeric: tabular-nums;
+        }
+        .speed-current .unit { font-size: 24px; font-weight: 400; color: #888; }
+        .speed-current.over { color: #ff1744; }
+        .speed-current.ok { color: #00c853; }
+        .speed-current.unknown { color: #888; }
+
+        .limit-display {
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+            padding: 16px;
+        }
+        .limit-box {
+            text-align: center;
+            padding: 12px 20px;
+            border-radius: 12px;
+            background: #161616;
+            min-width: 100px;
+        }
+        .limit-box .label { font-size: 11px; text-transform: uppercase; color: #888; margin-bottom: 4px; }
+        .limit-box .value { font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums; }
+        .limit-box .sub { font-size: 12px; color: #666; margin-top: 2px; }
+
+        .road-name {
+            text-align: center;
+            padding: 8px;
+            font-size: 14px;
+            color: #aaa;
+        }
+
+        .controls {
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .control-row {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+        }
+        .btn {
+            padding: 14px 24px;
+            border: none;
+            border-radius: 10px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.15s;
+            flex: 1;
+            max-width: 200px;
+        }
+        .btn:active { transform: scale(0.96); }
+        .btn-start { background: #00c853; color: #000; }
+        .btn-stop { background: #333; color: #fff; }
+        .btn-emergency {
+            background: #ff1744;
+            color: #fff;
+            font-size: 18px;
+            padding: 18px;
+            max-width: none;
+        }
+        .btn-emergency.active {
+            background: #fff;
+            color: #ff1744;
+            box-shadow: 0 0 20px rgba(255, 23, 68, 0.5);
+        }
+        .btn-mode { background: #1a237e; color: #fff; }
+        .btn-mode.active { background: #304ffe; }
+
+        .offset-control {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            padding: 12px;
+            background: #161616;
+            border-radius: 12px;
+            margin: 0 16px;
+        }
+        .offset-control .label { font-size: 13px; color: #888; }
+        .offset-control .value { font-size: 24px; font-weight: 700; min-width: 50px; text-align: center; }
+        .offset-btn {
+            width: 44px; height: 44px;
+            border-radius: 22px;
+            border: 2px solid #444;
+            background: transparent;
+            color: #fff;
+            font-size: 22px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .offset-btn:active { background: #333; }
+
+        .status-bar {
+            margin: 12px 16px;
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .status-chip {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        .chip-gps { background: #1b5e20; }
+        .chip-gps.off { background: #333; color: #888; }
+        .chip-dme { background: #0d47a1; }
+        .chip-dme.off { background: #333; color: #888; }
+        .chip-source { background: #333; color: #aaa; }
+
+        .log {
+            margin: 12px 16px;
+            padding: 12px;
+            background: #111;
+            border-radius: 8px;
+            max-height: 150px;
+            overflow-y: auto;
+            font-family: 'SF Mono', 'Menlo', monospace;
+            font-size: 11px;
+            color: #888;
+            line-height: 1.6;
+        }
+
+        .warning-banner {
+            background: #1a0500;
+            border: 1px solid #ff6d00;
+            color: #ff9100;
+            padding: 10px 16px;
+            margin: 12px 16px;
+            border-radius: 8px;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>SLOWER</h1>
+        <div id="connectionStatus">
+            <span class="status-dot off" id="dotGps"></span>GPS
+            <span class="status-dot off" id="dotDme" style="margin-left:12px"></span>DME
+        </div>
+    </div>
+
+    <div class="warning-banner" id="warningBanner">
+        EXPERIMENTAL SOFTWARE - Monitor only mode by default. Active mode sends commands to your
+        DME. Use at your own risk. Always maintain control of your vehicle.
+    </div>
+
+    <div class="speed-display">
+        <div class="speed-current unknown" id="currentSpeed">
+            --<span class="unit"> mph</span>
+        </div>
+    </div>
+
+    <div class="limit-display">
+        <div class="limit-box">
+            <div class="label">Speed Limit</div>
+            <div class="value" id="speedLimit">--</div>
+            <div class="sub">mph</div>
+        </div>
+        <div class="limit-box">
+            <div class="label">Vmax Set</div>
+            <div class="value" id="vmaxSet">--</div>
+            <div class="sub">mph</div>
+        </div>
+    </div>
+
+    <div class="road-name" id="roadName">Waiting for GPS...</div>
+
+    <div class="status-bar">
+        <span class="status-chip chip-gps off" id="chipGps">GPS: OFF</span>
+        <span class="status-chip chip-dme off" id="chipDme">DME: OFF</span>
+        <span class="status-chip chip-source" id="chipSource">Source: --</span>
+    </div>
+
+    <div class="offset-control">
+        <span class="label">Offset:</span>
+        <button class="offset-btn" onclick="changeOffset(-1)">-</button>
+        <span class="value" id="offsetValue">+5</span>
+        <button class="offset-btn" onclick="changeOffset(1)">+</button>
+        <span class="label">mph</span>
+    </div>
+
+    <div class="controls">
+        <div class="control-row">
+            <button class="btn btn-start" id="btnStart" onclick="startLimiter()">START</button>
+            <button class="btn btn-stop" id="btnStop" onclick="stopLimiter()">STOP</button>
+        </div>
+        <div class="control-row">
+            <button class="btn btn-mode" id="btnMode" onclick="toggleMode()">MONITOR MODE</button>
+        </div>
+        <button class="btn btn-emergency" id="btnEmergency" onclick="toggleEmergency()">
+            EMERGENCY OVERRIDE
+        </button>
+    </div>
+
+    <div class="log" id="logBox">System ready. Connect your phone's GPS to begin.</div>
+
+    <script>
+        let state = {};
+        let gpsWatchId = null;
+        let emergencyActive = false;
+        let activeMode = false;
+        let currentOffset = 5;
+
+        // Start GPS watching
+        function startGPS() {
+            if (!navigator.geolocation) {
+                addLog('Geolocation not supported by this browser');
+                return;
+            }
+
+            gpsWatchId = navigator.geolocation.watchPosition(
+                (pos) => {
+                    const data = {
+                        latitude: pos.coords.latitude,
+                        longitude: pos.coords.longitude,
+                        speed: pos.coords.speed,
+                        heading: pos.coords.heading,
+                        accuracy: pos.coords.accuracy,
+                    };
+                    fetch('/api/gps', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(data),
+                    }).catch(e => console.error('GPS send error:', e));
+                },
+                (err) => {
+                    addLog('GPS error: ' + err.message);
+                },
+                {
+                    enableHighAccuracy: true,
+                    maximumAge: 2000,
+                    timeout: 5000,
+                }
+            );
+            addLog('GPS watching started');
+        }
+
+        // Poll status
+        function pollStatus() {
+            fetch('/api/status')
+                .then(r => r.json())
+                .then(data => {
+                    state = data;
+                    updateUI();
+                })
+                .catch(() => {});
+        }
+
+        function updateUI() {
+            // Speed display
+            const speedEl = document.getElementById('currentSpeed');
+            if (state.current_speed_mph != null) {
+                const speed = Math.round(state.current_speed_mph);
+                const limit = state.speed_limit_mph;
+                speedEl.innerHTML = speed + '<span class="unit"> mph</span>';
+                if (limit && speed > limit) {
+                    speedEl.className = 'speed-current over';
+                } else {
+                    speedEl.className = 'speed-current ok';
+                }
+            } else {
+                speedEl.innerHTML = '--<span class="unit"> mph</span>';
+                speedEl.className = 'speed-current unknown';
+            }
+
+            // Limit display
+            document.getElementById('speedLimit').textContent =
+                state.speed_limit_mph != null ? state.speed_limit_mph : '--';
+            document.getElementById('vmaxSet').textContent =
+                state.target_vmax_mph != null ? state.target_vmax_mph : '--';
+
+            // Road name
+            document.getElementById('roadName').textContent =
+                state.road_name || (state.gps_connected ? 'Speed limit unknown' : 'Waiting for GPS...');
+
+            // Status chips
+            const chipGps = document.getElementById('chipGps');
+            chipGps.textContent = 'GPS: ' + (state.gps_connected ? 'ON' : 'OFF');
+            chipGps.className = 'status-chip chip-gps' + (state.gps_connected ? '' : ' off');
+
+            const chipDme = document.getElementById('chipDme');
+            chipDme.textContent = 'DME: ' + (state.dme_connected ? 'ON' : 'OFF');
+            chipDme.className = 'status-chip chip-dme' + (state.dme_connected ? '' : ' off');
+
+            document.getElementById('chipSource').textContent =
+                'Source: ' + (state.speed_limit_source || '--');
+
+            // Dots
+            document.getElementById('dotGps').className =
+                'status-dot ' + (state.gps_connected ? 'on' : 'off');
+            document.getElementById('dotDme').className =
+                'status-dot ' + (state.dme_connected ? 'on' : state.active_mode ? 'error' : 'off');
+
+            // Mode button
+            const btnMode = document.getElementById('btnMode');
+            activeMode = state.active_mode;
+            btnMode.textContent = activeMode ? 'ACTIVE MODE' : 'MONITOR MODE';
+            btnMode.className = 'btn btn-mode' + (activeMode ? ' active' : '');
+
+            // Emergency
+            emergencyActive = state.emergency_override;
+            const btnE = document.getElementById('btnEmergency');
+            btnE.className = 'btn btn-emergency' + (emergencyActive ? ' active' : '');
+            btnE.textContent = emergencyActive ? 'OVERRIDE ACTIVE - TAP TO CLEAR' : 'EMERGENCY OVERRIDE';
+
+            // Offset
+            currentOffset = state.offset_mph || 5;
+            document.getElementById('offsetValue').textContent = '+' + currentOffset;
+
+            // Log
+            if (state.messages && state.messages.length > 0) {
+                document.getElementById('logBox').innerHTML =
+                    state.messages.map(m => '<div>' + m + '</div>').join('');
+            }
+        }
+
+        function startLimiter() {
+            fetch('/api/control/start', { method: 'POST' }).then(() => addLog('Start requested'));
+        }
+
+        function stopLimiter() {
+            fetch('/api/control/stop', { method: 'POST' }).then(() => addLog('Stop requested'));
+        }
+
+        function toggleMode() {
+            fetch('/api/control/mode', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ active: !activeMode }),
+            });
+        }
+
+        function toggleEmergency() {
+            fetch('/api/control/emergency', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ active: !emergencyActive }),
+            });
+        }
+
+        function changeOffset(delta) {
+            const newOffset = Math.max(0, Math.min(20, currentOffset + delta));
+            fetch('/api/control/offset', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ offset_mph: newOffset }),
+            });
+        }
+
+        function addLog(msg) {
+            const box = document.getElementById('logBox');
+            const now = new Date().toLocaleTimeString();
+            box.innerHTML += '<div>[' + now + '] ' + msg + '</div>';
+            box.scrollTop = box.scrollHeight;
+        }
+
+        // Initialize
+        startGPS();
+        setInterval(pollStatus, 1000);
+        pollStatus();
+    </script>
+</body>
+</html>

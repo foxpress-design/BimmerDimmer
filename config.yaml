@@ -1,0 +1,64 @@
+# Slower - BMW GPS Speed Limiter Configuration
+# =============================================
+
+# K+DCAN Cable Connection
+cable:
+  # Serial port for the K+DCAN cable
+  # Windows: COM3, COM4, etc.
+  # Linux: /dev/ttyUSB0
+  # macOS: /dev/tty.usbserial-XXXXX
+  port: "/dev/ttyUSB0"
+  # DCAN mode baud rate (do not change unless you know what you're doing)
+  baudrate: 115200
+  # Timeout in seconds for serial reads
+  timeout: 0.5
+
+# Vehicle Configuration
+vehicle:
+  # E90 325xi with N52 engine uses MSV70 DME
+  dme_type: "MSV70"
+  # CAN arbitration IDs for DME communication
+  dme_request_id: 0x612
+  dme_response_id: 0x612
+
+# Speed Limit Settings
+limiter:
+  # Enable active speed limiting (writes to DME)
+  # Set to false for monitor-only mode (no DME commands sent)
+  active: false
+  # Offset above posted speed limit in mph (e.g., 5 = allow 5 mph over limit)
+  offset_mph: 5
+  # Minimum Vmax the system will ever set (safety floor) in mph
+  min_vmax_mph: 15
+  # Maximum Vmax / default when no limit is known, in mph
+  max_vmax_mph: 155
+  # How often to update the DME speed limit (seconds)
+  update_interval_sec: 3
+  # Grace period after GPS signal loss before releasing limiter (seconds)
+  gps_loss_grace_sec: 10
+
+# Speed Limit Data Source
+speed_limits:
+  # Primary source: "osm" (OpenStreetMap, free) or "google" (requires API key)
+  primary: "osm"
+  # Google Maps Roads API key (only needed if primary is "google")
+  google_api_key: ""
+  # Cache speed limits for this many seconds to reduce API calls
+  cache_ttl_sec: 30
+  # Search radius in meters for nearby roads
+  search_radius_m: 50
+
+# Web Dashboard
+web:
+  # Host to bind to (0.0.0.0 = all interfaces, needed for phone access)
+  host: "0.0.0.0"
+  port: 5555
+  # Set to true to require the phone to be on the same WiFi network
+  local_only: false
+
+# Logging
+logging:
+  # Level: DEBUG, INFO, WARNING, ERROR
+  level: "INFO"
+  # Log file path (empty = stdout only)
+  file: "slower.log"
