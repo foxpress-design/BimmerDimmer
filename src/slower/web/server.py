@@ -101,6 +101,9 @@ def create_app(
             "offset_mph": s.offset_mph,
             "last_error": s.last_error,
             "messages": s.status_messages[-10:],
+            "transport_states": s.transport_states,
+            "dme_write_count": s.dme_write_count,
+            "degraded_reason": s.degraded_reason,
         })
 
     @app.route("/api/control/mode", methods=["POST"])

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Slower - BMW Speed Limiter</title>
+    <title>BimmerDimmer - BMW Speed Limiter</title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
@@ -182,7 +182,7 @@
 </head>
 <body>
     <div class="header">
-        <h1>SLOWER</h1>
+        <h1>BIMMERDIMMER</h1>
         <div id="connectionStatus">
             <span class="status-dot off" id="dotGps"></span>GPS
             <span class="status-dot off" id="dotDme" style="margin-left:12px"></span>DME
@@ -192,6 +192,10 @@
     <div class="warning-banner" id="warningBanner">
         EXPERIMENTAL SOFTWARE - Monitor only mode by default. Active mode sends commands to your
         DME. Use at your own risk. Always maintain control of your vehicle.
+    </div>
+
+    <div class="warning-banner" id="degradedBanner" style="display:none;border-color:#ff1744;color:#ff1744;background:#1a0005">
+        DEGRADED: <span id="degradedReason"></span>
     </div>
 
     <div class="speed-display">
@@ -219,6 +223,13 @@
         <span class="status-chip chip-gps off" id="chipGps">GPS: OFF</span>
         <span class="status-chip chip-dme off" id="chipDme">DME: OFF</span>
         <span class="status-chip chip-source" id="chipSource">Source: --</span>
+        <span class="status-chip" id="chipWifi" style="background:#333;color:#888">WiFi: --</span>
+        <span class="status-chip" id="chipBle" style="background:#333;color:#888">BLE: --</span>
+        <span class="status-chip" id="chipSpp" style="background:#333;color:#888">SPP: --</span>
+    </div>
+
+    <div id="writeCounter" style="text-align:center;font-size:11px;color:#666;padding:4px;display:none">
+        DME Writes: <span id="writeCount">0</span> / 1000
     </div>
 
     <div class="offset-control">
@@ -237,12 +248,28 @@
         <div class="control-row">
             <button class="btn btn-mode" id="btnMode" onclick="toggleMode()">MONITOR MODE</button>
         </div>
+        <div class="control-row" id="bleRow">
+            <button class="btn" id="btnBle" onclick="connectBLE()" style="background:#6200ea;color:#fff">CONNECT BLUETOOTH</button>
+        </div>
         <button class="btn btn-emergency" id="btnEmergency" onclick="toggleEmergency()">
             EMERGENCY OVERRIDE
         </button>
     </div>
 
     <div class="log" id="logBox">System ready. Connect your phone's GPS to begin.</div>
+
+    <div id="confirmDialog" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.85);z-index:100;align-items:center;justify-content:center">
+        <div style="background:#1a1a1a;border:1px solid #ff9100;border-radius:16px;padding:24px;margin:20px;max-width:340px;text-align:center">
+            <div style="font-size:18px;font-weight:700;color:#ff9100;margin-bottom:12px">Enable Active Mode?</div>
+            <div style="font-size:14px;color:#ccc;line-height:1.5;margin-bottom:20px">
+                Active Mode will send commands to your DME. This modifies engine control parameters. Are you sure?
+            </div>
+            <div style="display:flex;gap:12px;justify-content:center">
+                <button class="btn" style="background:#333;color:#fff" onclick="dismissConfirm()">Cancel</button>
+                <button class="btn" style="background:#ff9100;color:#000" onclick="confirmActiveMode()">Enable Active Mode</button>
+            </div>
+        </div>
+    </div>
 
     <script>
         let state = {};
@@ -272,6 +299,7 @@
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(data),
                     }).catch(e => console.error('GPS send error:', e));
+                    if (bleChar) sendGPSviaBLE(pos);
                 },
                 (err) => {
                     addLog('GPS error: ' + err.message);
@@ -283,6 +311,16 @@
                 }
             );
             addLog('GPS watching started');
+        }
+
+        function updateTransportChip(id, label, state) {
+            var chip = document.getElementById(id);
+            if (!chip || !state) return;
+            chip.textContent = label + ': ' + state.toUpperCase();
+            if (state === 'healthy') { chip.style.background = '#1b5e20'; chip.style.color = '#e0e0e0'; }
+            else if (state === 'degraded') { chip.style.background = '#e65100'; chip.style.color = '#fff'; }
+            else if (state === 'lost') { chip.style.background = '#b71c1c'; chip.style.color = '#fff'; }
+            else { chip.style.background = '#333'; chip.style.color = '#888'; }
         }
 
         // Poll status
@@ -362,6 +400,35 @@
                 document.getElementById('logBox').innerHTML =
                     state.messages.map(m => '<div>' + m + '</div>').join('');
             }
+
+            // Transport states
+            if (state.transport_states) {
+                updateTransportChip('chipWifi', 'WiFi', state.transport_states.wifi);
+                updateTransportChip('chipBle', 'BLE', state.transport_states.ble);
+                updateTransportChip('chipSpp', 'SPP', state.transport_states.spp);
+            }
+
+            // Write counter
+            var wc = document.getElementById('writeCounter');
+            if (state.active_mode && state.dme_write_count != null) {
+                wc.style.display = 'block';
+                var countEl = document.getElementById('writeCount');
+                countEl.textContent = state.dme_write_count;
+                if (state.dme_write_count >= 1000) countEl.style.color = '#ff1744';
+                else if (state.dme_write_count >= 500) countEl.style.color = '#ff9100';
+                else countEl.style.color = '#888';
+            } else {
+                wc.style.display = 'none';
+            }
+
+            // Degraded banner
+            var db = document.getElementById('degradedBanner');
+            if (state.degraded_reason) {
+                db.style.display = 'block';
+                document.getElementById('degradedReason').textContent = state.degraded_reason;
+            } else {
+                db.style.display = 'none';
+            }
         }
 
         function startLimiter() {
@@ -373,10 +440,71 @@
         }
 
         function toggleMode() {
+            if (!activeMode) {
+                document.getElementById('confirmDialog').style.display = 'flex';
+            } else {
+                fetch('/api/control/mode', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ active: false }),
+                });
+            }
+        }
+
+        function confirmActiveMode() {
+            document.getElementById('confirmDialog').style.display = 'none';
             fetch('/api/control/mode', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ active: !activeMode }),
+                body: JSON.stringify({ active: true }),
+            });
+        }
+
+        function dismissConfirm() {
+            document.getElementById('confirmDialog').style.display = 'none';
+        }
+
+        var bleDevice = null;
+        var bleChar = null;
+
+        function connectBLE() {
+            if (!navigator.bluetooth) {
+                addLog('Web Bluetooth not supported in this browser');
+                return;
+            }
+            navigator.bluetooth.requestDevice({
+                filters: [{ services: ['0000fff0-0000-1000-8000-00805f9b34fb'] }],
+            })
+            .then(device => {
+                bleDevice = device;
+                addLog('BLE: connecting to ' + device.name);
+                return device.gatt.connect();
+            })
+            .then(server => server.getPrimaryService('0000fff0-0000-1000-8000-00805f9b34fb'))
+            .then(service => service.getCharacteristic('0000fff1-0000-1000-8000-00805f9b34fb'))
+            .then(char => {
+                bleChar = char;
+                document.getElementById('btnBle').textContent = 'BLUETOOTH CONNECTED';
+                document.getElementById('btnBle').style.background = '#00c853';
+                addLog('BLE: connected, sending GPS via Bluetooth');
+            })
+            .catch(err => {
+                addLog('BLE error: ' + err.message);
+            });
+        }
+
+        function sendGPSviaBLE(pos) {
+            if (!bleChar) return;
+            var data = JSON.stringify({
+                latitude: pos.coords.latitude,
+                longitude: pos.coords.longitude,
+                speed: pos.coords.speed,
+                heading: pos.coords.heading,
+                accuracy: pos.coords.accuracy,
+            });
+            var encoder = new TextEncoder();
+            bleChar.writeValue(encoder.encode(data)).catch(e => {
+                addLog('BLE write error: ' + e.message);
             });
         }
 
@@ -408,6 +536,9 @@
         startGPS();
         setInterval(pollStatus, 1000);
         pollStatus();
+        if (!navigator.bluetooth) {
+            document.getElementById('bleRow').style.display = 'none';
+        }
     </script>
 </body>
 </html>

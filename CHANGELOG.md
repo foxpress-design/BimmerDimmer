@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.1 (2026-03-26)
+
+### What's New
+
+- Updated dashboard title and header to "BimmerDimmer".
+- Added `transport_states`, `dme_write_count`, and `degraded_reason` fields to the `/api/status` JSON response.
+- Added WiFi, BLE, and SPP transport health chips to the status bar, color-coded by state (healthy/degraded/lost).
+- Added DME write counter display (shown only in active mode, with color warnings at 500 and 1000 writes).
+- Added degraded mode banner that appears when `degraded_reason` is set, styled in red.
+- Added BLE Connect button (hidden automatically when Web Bluetooth is not supported by the browser).
+- Added active mode confirmation dialog to prevent accidental DME write activation.
+- Added `connectBLE` and `sendGPSviaBLE` Web Bluetooth functions for direct BLE GPS forwarding.
+- GPS watchPosition callback now also forwards position to BLE when a characteristic is connected.
+
 ## 0.4.0 (2026-03-26)
 
 ### What's New
