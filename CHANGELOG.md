@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.8 (2026-03-26)
+
+### What's New
+
+- Added `src/slower/transport/spp.py` with `SPPTransport` class for Classic Bluetooth (SPP/RFCOMM) GPS data reception.
+- `SPPTransport` listens on a configurable RFCOMM channel (default 1) and accepts newline-delimited JSON GPS payloads from a companion app.
+- Gracefully disables itself on non-Linux platforms where `socket.AF_BLUETOOTH` is unavailable (catches `AttributeError`).
+- Uses `TransportHealth` for connection health tracking, consistent with the WiFi and BLE transport patterns.
+- `_process_line()` parses JSON, calls `GPSProvider.update()`, and records success or failure on the health tracker.
+
 ## 0.3.7 (2026-03-26)
 
 ### What's New
