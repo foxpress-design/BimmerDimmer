@@ -23,10 +23,10 @@ slower-watchdog                            # Standalone watchdog process
 ## Architecture
 
 ```
-Phone (GPS) --> [WiFi / BLE / Bluetooth Serial] --> BimmerDimmer (Pi) --> [K+DCAN USB] --> BMW DME (Vmax)
+Phone (GPS) --> [WiFi / USB-C / BLE / Bluetooth Serial] --> BimmerDimmer (Pi) --> [K+DCAN USB] --> BMW DME (Vmax)
 ```
 
-**Transport layer** (`transport/`): `GPSTransport` protocol with three implementations: `WiFiTransport` (HTTP POST), `BLETransport` (BlueZ GATT server via dbus-fast), `SPPTransport` (RFCOMM socket). All transports feed `GPSProvider`, which always uses the freshest valid fix. `TransportHealth` tracks per-transport state (healthy/degraded/lost).
+**Transport layer** (`transport/`): `GPSTransport` protocol with four implementations: `WiFiTransport` (HTTP POST), `BLETransport` (BlueZ GATT server via dbus-fast), `SPPTransport` (RFCOMM socket), `USBTransport` (USB-C tethering via network interface). All transports feed `GPSProvider`, which always uses the freshest valid fix. `TransportHealth` tracks per-transport state (healthy/degraded/lost).
 
 **Data flow per control tick** (runs every 3s in a background thread):
 1. `GPSProvider` receives position updates from any active transport, with validation (accuracy, speed jump, teleportation filters)

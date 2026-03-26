@@ -30,6 +30,14 @@ BimmerDimmer is built with multiple layers of protection for both the driver and
 - Software watchdog (`slower-watchdog`) runs as a separate process. If the main process dies, the watchdog resets the DME to factory Vmax.
 - `slower --reset` recovery command connects to the DME, clears any Vmax limit, and exits. Use after power loss or crashes.
 
+## What's New (v0.4.3)
+
+- Added USB-C tethering transport (`USBTransport`) as a fourth GPS transport option
+- Added `transports.usb` (default: `true`) and `transports.usb_interface` (default: `usb0`) config fields
+- USB transport wired into startup alongside WiFi, BLE, and SPP with the same try/warn pattern
+- Added USB status chip to the dashboard status bar
+- Updated architecture diagram and docs to include USB-C tethering
+
 ## What's New (v0.3.2)
 
 - Raised `set_vmax` floor from 25 km/h to 40 km/h with stricter bounds enforcement
@@ -69,7 +77,7 @@ BimmerDimmer is built with multiple layers of protection for both the driver and
 5. The DME enforces the speed limit by cutting fuel injection (throttle-cut, NOT braking)
 
 ```
-Phone (GPS) --> [WiFi / BLE / Bluetooth Serial] --> BimmerDimmer (Pi) --> [K+DCAN USB] --> BMW DME (Vmax)
+Phone (GPS) --> [WiFi / USB-C / BLE / Bluetooth Serial] --> BimmerDimmer (Pi) --> [K+DCAN USB] --> BMW DME (Vmax)
 ```
 
 ## Hardware Required
@@ -77,7 +85,7 @@ Phone (GPS) --> [WiFi / BLE / Bluetooth Serial] --> BimmerDimmer (Pi) --> [K+DCA
 - **K+DCAN USB cable** - FTDI FT232-based cable with DCAN switch (set to position 2/DCAN)
 - **Raspberry Pi** - runs BimmerDimmer, connected to the K+DCAN cable via USB
 - **Phone** - any smartphone with a modern browser (provides GPS via Geolocation API)
-- **Connectivity** - WiFi (phone and Pi on the same network or Pi as hotspot), Bluetooth Low Energy (Chrome/Edge on Android), or Bluetooth Serial (companion app)
+- **Connectivity** - WiFi (phone and Pi on the same network or Pi as hotspot), USB-C tethering (most reliable, wired), Bluetooth Low Energy (Chrome/Edge on Android), or Bluetooth Serial (companion app)
 
 The K+DCAN cable plugs into the OBD-II port under the dashboard (driver's side).
 

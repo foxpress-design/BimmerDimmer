@@ -61,7 +61,7 @@ def main() -> None:
     setup_logging(config.logging.level, config.logging.file)
 
     logger = logging.getLogger("slower")
-    logger.info("=== BimmerDimmer v0.3.0 - BMW GPS Speed Limiter ===")
+    logger.info("=== BimmerDimmer v0.4.3 - BMW GPS Speed Limiter ===")
     logger.info("Vehicle: E90 325xi (N52 / %s DME)", config.vehicle.dme_type)
 
     if args.monitor:
@@ -156,6 +156,15 @@ def main() -> None:
             connection_monitor.add_gps_transport("spp")
         except Exception as e:
             logger.warning("SPP transport unavailable: %s", e)
+
+    if config.transports.usb:
+        try:
+            from slower.transport.usb import USBTransport
+            usb_transport = USBTransport(interface=config.transports.usb_interface)
+            usb_transport.start(gps)
+            connection_monitor.add_gps_transport("usb")
+        except Exception as e:
+            logger.warning("USB transport unavailable: %s", e)
 
     # Initialize controller
     from slower.limiter.controller import SpeedLimiterController

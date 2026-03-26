@@ -56,6 +56,8 @@ class TransportConfig:
     ble: bool = True
     spp: bool = True
     spp_channel: int = 1
+    usb: bool = True
+    usb_interface: str = "usb0"
 
 
 @dataclass

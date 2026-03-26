@@ -226,6 +226,7 @@
         <span class="status-chip" id="chipWifi" style="background:#333;color:#888">WiFi: --</span>
         <span class="status-chip" id="chipBle" style="background:#333;color:#888">BLE: --</span>
         <span class="status-chip" id="chipSpp" style="background:#333;color:#888">SPP: --</span>
+        <span class="status-chip" id="chipUsb" style="background:#333;color:#888">USB: --</span>
     </div>
 
     <div id="writeCounter" style="text-align:center;font-size:11px;color:#666;padding:4px;display:none">
@@ -406,6 +407,7 @@
                 updateTransportChip('chipWifi', 'WiFi', state.transport_states.wifi);
                 updateTransportChip('chipBle', 'BLE', state.transport_states.ble);
                 updateTransportChip('chipSpp', 'SPP', state.transport_states.spp);
+                updateTransportChip('chipUsb', 'USB', state.transport_states.usb);
             }
 
             // Write counter
