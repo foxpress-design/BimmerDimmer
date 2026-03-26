@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.4.2 (2026-03-26)
+
+### What's New
+
+- Added `test_gps_loss_caps_at_120_after_grace` to `tests/test_safety.py` to verify that GPS loss correctly caps speed at `GPS_LOSS_CAP_KMH` (120 km/h) after the grace period expires.
+
 ## 0.4.1 (2026-03-26)
 
 ### What's New

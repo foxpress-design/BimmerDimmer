@@ -5,6 +5,7 @@ import time
 from slower.bmw.safety import (
     ABSOLUTE_MAX_VMAX_KMH,
     ABSOLUTE_MIN_VMAX_KMH,
+    GPS_LOSS_CAP_KMH,
     SafetyManager,
 )
 
@@ -73,3 +74,16 @@ def test_update_too_fast_returns_current():
     sm.state.last_update_time = time.monotonic()  # Just updated
     result = sm.validate_vmax_change(100, 80)
     assert result == 100  # No change, too fast
+
+
+def test_gps_loss_caps_at_120_after_grace():
+    sm = SafetyManager()
+    sm.state.last_vmax_kmh = 80
+
+    # Initial loss
+    sm.handle_gps_loss(grace_period_sec=0.0)
+    # Grace period of 0 means immediately cap
+    sm.state.gps_lost_time = time.monotonic() - 1  # Pretend 1 second ago
+    result = sm.handle_gps_loss(grace_period_sec=0.0)
+    assert result == GPS_LOSS_CAP_KMH
+    assert result == 120
