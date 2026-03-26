@@ -51,6 +51,24 @@ class SpeedLimitsConfig:
 
 
 @dataclass
+class TransportConfig:
+    wifi: bool = True
+    ble: bool = True
+    spp: bool = True
+    spp_channel: int = 1
+
+
+@dataclass
+class SafetyExtConfig:
+    max_gps_accuracy_m: float = 100.0
+    max_speed_jump_kmh: float = 50.0
+    write_confirm_ticks: int = 2
+    max_writes_per_session: int = 1000
+    watchdog_heartbeat_sec: float = 2.0
+    watchdog_timeout_sec: float = 10.0
+
+
+@dataclass
 class WebConfig:
     host: str = "0.0.0.0"
     port: int = 5555
@@ -69,6 +87,8 @@ class Config:
     vehicle: VehicleConfig = field(default_factory=VehicleConfig)
     limiter: LimiterConfig = field(default_factory=LimiterConfig)
     speed_limits: SpeedLimitsConfig = field(default_factory=SpeedLimitsConfig)
+    transports: TransportConfig = field(default_factory=TransportConfig)
+    safety: SafetyExtConfig = field(default_factory=SafetyExtConfig)
     web: WebConfig = field(default_factory=WebConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)
 
@@ -113,6 +133,10 @@ def load_config(path: str | Path | None = None) -> Config:
             cfg.web = WebConfig(**raw["web"])
         if "logging" in raw:
             cfg.logging = LoggingConfig(**raw["logging"])
+        if "transports" in raw:
+            cfg.transports = TransportConfig(**raw["transports"])
+        if "safety" in raw:
+            cfg.safety = SafetyExtConfig(**raw["safety"])
     else:
         logger.warning("No config file found, using defaults")
 

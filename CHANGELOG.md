@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.6 (2026-03-26)
+
+### What's New
+
+- Added `TransportConfig` dataclass to `src/slower/config.py` with fields: `wifi`, `ble`, `spp` (all bool, default True), and `spp_channel` (int, default 1).
+- Added `SafetyExtConfig` dataclass with fields: `max_gps_accuracy_m`, `max_speed_jump_kmh`, `write_confirm_ticks`, `max_writes_per_session`, `watchdog_heartbeat_sec`, and `watchdog_timeout_sec`.
+- Wired both new configs into the `Config` dataclass as `transports` and `safety` fields with appropriate defaults.
+- Added parsing in `load_config()` for both new sections from YAML config files.
+
 ## 0.3.5 (2026-03-26)
 
 ### What's New
