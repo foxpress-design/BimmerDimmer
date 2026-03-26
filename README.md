@@ -1,9 +1,15 @@
-# Slower
+# BimmerDimmer
 
 GPS-based speed limiter for 2006 BMW 325xi (E90 / N52 engine / MSV70 DME).
 
 Connects to your car's DME via a K+DCAN USB cable and dynamically adjusts
 the Vmax (top speed) parameter based on posted speed limits from GPS data.
+
+## What's New (v0.2.0)
+
+- Renamed project to BimmerDimmer
+- GPS or device connection loss now caps speed at 120 km/h instead of releasing the limiter
+- Raised minimum Vmax floor from 25 km/h to 40 km/h
 
 ## How It Works
 
@@ -84,9 +90,9 @@ src/slower/
 ## Safety
 
 - **Default mode is MONITOR ONLY** - no DME commands are sent unless you explicitly enable active mode
-- Hard minimum Vmax floor of 25 km/h (~15 mph) that cannot be overridden
+- Hard minimum Vmax floor of 40 km/h (~25 mph) that cannot be overridden
 - Rate limiting prevents sudden large decreases in Vmax
-- GPS signal loss triggers a grace period, then releases the limiter
+- GPS or device connection loss triggers a grace period, then caps speed at 120 km/h
 - Emergency override button on the dashboard instantly disables the limiter
 - 5 consecutive DME communication failures trigger automatic override
 - The Vmax limiter works by fuel cut only - it does NOT apply brakes

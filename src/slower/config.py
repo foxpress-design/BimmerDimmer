@@ -36,7 +36,7 @@ class VehicleConfig:
 class LimiterConfig:
     active: bool = False
     offset_mph: int = 5
-    min_vmax_mph: int = 15
+    min_vmax_mph: int = 25
     max_vmax_mph: int = 155
     update_interval_sec: int = 3
     gps_loss_grace_sec: int = 10

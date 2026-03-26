@@ -13,8 +13,9 @@ from dataclasses import dataclass, field
 logger = logging.getLogger(__name__)
 
 # Hard safety limits - these are NOT configurable
-ABSOLUTE_MIN_VMAX_KMH = 25  # ~15 mph - never limit below this
+ABSOLUTE_MIN_VMAX_KMH = 40  # ~25 mph - never limit below this
 ABSOLUTE_MAX_VMAX_KMH = 250  # ~155 mph - factory top speed
+GPS_LOSS_CAP_KMH = 120  # Hard cap when GPS or device connection is lost
 MAX_VMAX_CHANGE_PER_SEC_KMH = 50  # Max rate of Vmax change (prevent sudden drops)
 MIN_UPDATE_INTERVAL_SEC = 1.0  # Don't hammer the DME faster than this
 
@@ -90,7 +91,7 @@ class SafetyManager:
     def handle_gps_loss(self, grace_period_sec: float) -> int:
         """Handle GPS signal loss.
 
-        Returns what Vmax should be set to. After grace period, releases limiter.
+        Returns what Vmax should be set to. After grace period, caps at GPS_LOSS_CAP_KMH.
         """
         now = time.monotonic()
 
@@ -102,8 +103,12 @@ class SafetyManager:
 
         elapsed = now - self.state.gps_lost_time
         if elapsed > grace_period_sec:
-            logger.warning("GPS grace period expired (%.0fs), releasing limiter", elapsed)
-            return ABSOLUTE_MAX_VMAX_KMH
+            logger.warning(
+                "GPS grace period expired (%.0fs), capping at %d km/h",
+                elapsed,
+                GPS_LOSS_CAP_KMH,
+            )
+            return GPS_LOSS_CAP_KMH
 
         # Still within grace period, hold current limit
         return self.state.last_vmax_kmh

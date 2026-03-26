@@ -16,7 +16,7 @@ import time
 from dataclasses import dataclass, field
 
 from slower.bmw.e90_dme import E90DME
-from slower.bmw.safety import ABSOLUTE_MAX_VMAX_KMH, SafetyManager
+from slower.bmw.safety import ABSOLUTE_MAX_VMAX_KMH, GPS_LOSS_CAP_KMH, SafetyManager
 from slower.config import Config
 from slower.gps.provider import GPSProvider
 from slower.gps.speed_limits import SpeedLimitResult, SpeedLimitService
