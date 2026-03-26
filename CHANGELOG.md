@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.4 (2026-03-26)
+
+### What's New
+
+- Added `src/slower/bmw/recovery.py` with `check_stale_vmax` and `reset_vmax` functions for DME startup safety checks and recovery.
+- `check_stale_vmax` detects leftover active Vmax limits below 120 km/h (GPS_LOSS_CAP_KMH), indicating a crash from a previous session.
+- `reset_vmax` disables the DME Vmax limiter and logs the result, used by the `--reset` CLI command.
+- Added `tests/test_recovery.py` with five tests covering stale detection, high-value pass-through, inactive pass-through, successful reset, and failed reset.
+
 ## 0.3.3 (2026-03-26)
 
 ### What's New
