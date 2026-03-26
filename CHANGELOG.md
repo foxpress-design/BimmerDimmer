@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.7 (2026-03-26)
+
+### What's New
+
+- Added `src/slower/transport/ble.py` with `BLETransport` class implementing a BLE GATT server for receiving GPS data from phones via Web Bluetooth.
+- `BLETransport` runs a BlueZ D-Bus GATT server (via dbus-fast) in a background daemon thread with its own asyncio event loop.
+- The `WriteValue` GATT characteristic method parses incoming JSON GPS payloads and delegates to `GPSProvider.update()`, recording health via `TransportHealth`.
+- Gracefully handles systems without dbus-fast (ImportError caught, warning logged, transport disabled).
+- Added `dbus-fast>=2.0` to project dependencies in `pyproject.toml`.
+
 ## 0.3.6 (2026-03-26)
 
 ### What's New
