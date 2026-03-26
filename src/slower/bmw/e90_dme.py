@@ -63,6 +63,8 @@ class MSV70DID(IntEnum):
 # This is the publicly documented algorithm from the BMW coding community.
 # Access level 0x01 is the standard coding level (not flash/programming).
 SA_LEVEL_CODING = 0x01
+WRITE_WARN_THRESHOLD = 500
+WRITE_HARD_STOP = 1000
 
 
 def compute_security_key(seed: bytes) -> bytes:
@@ -114,6 +116,16 @@ class E90DME:
         self.uds = uds
         self._session_active = False
         self._security_unlocked = False
+        self._write_count = 0
+        self._writes_disabled = False
+
+    @property
+    def write_count(self) -> int:
+        return self._write_count
+
+    @property
+    def writes_disabled(self) -> bool:
+        return self._writes_disabled
 
     def initialize(self) -> bool:
         """Initialize communication: start extended session and unlock security.
@@ -184,29 +196,57 @@ class E90DME:
     def set_vmax(self, speed_kmh: int) -> bool:
         """Set the Vmax speed limiter value.
 
-        Args:
-            speed_kmh: Maximum speed in km/h (must be >= 25 km/h)
-
-        Returns:
-            True if successfully written to DME.
+        Includes write counter, parameter bounds guard, and read-back verification.
         """
         if not self._security_unlocked:
             logger.error("Security access required before writing Vmax")
             return False
 
-        # Hard safety floor - never set below 25 km/h (~15 mph)
-        if speed_kmh < 25:
-            logger.error("Refusing to set Vmax below 25 km/h (got %d)", speed_kmh)
+        if self._writes_disabled:
+            logger.error("DME writes disabled due to previous fault")
             return False
 
-        # Hard safety ceiling
+        if self._write_count >= WRITE_HARD_STOP:
+            logger.error("Write counter at %d, hard stop reached. Restart to continue.",
+                         self._write_count)
+            return False
+
+        if speed_kmh < 40:
+            logger.error("Refusing to set Vmax below 40 km/h (got %d)", speed_kmh)
+            return False
         if speed_kmh > 250:
             logger.error("Refusing to set Vmax above 250 km/h (got %d)", speed_kmh)
             return False
 
+        if self._write_count >= WRITE_WARN_THRESHOLD:
+            logger.warning("DME write count high: %d / %d", self._write_count, WRITE_HARD_STOP)
+
         logger.info("Setting Vmax to %d km/h", speed_kmh)
         value = struct.pack(">H", speed_kmh)
-        return self.uds.write_data(MSV70DID.VMAX_SPEED, value)
+        success = self.uds.write_data(MSV70DID.VMAX_SPEED, value)
+
+        if not success:
+            return False
+
+        self._write_count += 1
+
+        # Read-back verification
+        readback = self.uds.read_data(MSV70DID.VMAX_SPEED)
+        if readback is None or len(readback) < 2:
+            logger.critical("FAULT: Vmax read-back failed after write. Disabling writes.")
+            self._writes_disabled = True
+            return False
+
+        readback_kmh = struct.unpack(">H", readback[:2])[0]
+        if abs(readback_kmh - speed_kmh) > 1:
+            logger.critical(
+                "FAULT: Vmax read-back mismatch. Wrote %d, read %d. Disabling writes.",
+                speed_kmh, readback_kmh,
+            )
+            self._writes_disabled = True
+            return False
+
+        return True
 
     def enable_vmax(self) -> bool:
         """Enable the Vmax speed limiter."""

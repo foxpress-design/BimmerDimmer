@@ -30,6 +30,14 @@ BimmerDimmer is built with multiple layers of protection for both the driver and
 - Software watchdog (`slower-watchdog`) runs as a separate process. If the main process dies, the watchdog resets the DME to factory Vmax.
 - `slower --reset` recovery command connects to the DME, clears any Vmax limit, and exits. Use after power loss or crashes.
 
+## What's New (v0.3.2)
+
+- Raised `set_vmax` floor from 25 km/h to 40 km/h with stricter bounds enforcement
+- Added write counter (`write_count`) with hard stop at 1000 writes per session
+- Added read-back verification after every Vmax write, disabling further writes on mismatch or read failure (`writes_disabled`)
+- Added `WRITE_WARN_THRESHOLD` (500) and `WRITE_HARD_STOP` (1000) constants
+- Added 7 new tests covering all protection paths in `tests/test_dme_protection.py`
+
 ## What's New (v0.3.1)
 
 - Added `GPSTransport` protocol defining the interface all transport implementations must satisfy
