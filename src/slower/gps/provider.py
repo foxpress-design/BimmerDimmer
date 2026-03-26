@@ -7,10 +7,26 @@ The web dashboard (served by Flask) sends position updates to this module.
 from __future__ import annotations
 
 import logging
+import math
 import time
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
+
+# GPS validation thresholds
+MAX_GPS_ACCURACY_M = 100.0
+MAX_SPEED_JUMP_KMH = 50.0
+MAX_IMPLIED_SPEED_KMH = 200.0
+
+
+def _haversine_m(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Calculate distance between two GPS points in meters."""
+    R = 6371000
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 
 @dataclass
@@ -71,19 +87,17 @@ class GPSProvider:
         return self._position
 
     def update(self, lat: float, lon: float, speed_mps: float | None = None,
-               heading: float | None = None, accuracy_m: float = 50.0) -> GPSPosition:
+               heading: float | None = None, accuracy_m: float = 50.0) -> GPSPosition | None:
         """Update with a new GPS fix from the phone.
 
-        Args:
-            lat: Latitude in decimal degrees
-            lon: Longitude in decimal degrees
-            speed_mps: Speed in meters/second (from browser Geolocation API)
-            heading: Heading in degrees from north
-            accuracy_m: Accuracy radius in meters
-
-        Returns:
-            The new GPSPosition
+        Returns the new GPSPosition, or None if the fix was rejected by validation.
         """
+        # Accuracy filter
+        if accuracy_m > MAX_GPS_ACCURACY_M:
+            logger.warning("GPS fix rejected: accuracy %.0fm exceeds %.0fm threshold",
+                            accuracy_m, MAX_GPS_ACCURACY_M)
+            return None
+
         pos = GPSPosition(
             latitude=lat,
             longitude=lon,
@@ -92,6 +106,28 @@ class GPSProvider:
             accuracy_m=accuracy_m,
             timestamp=time.time(),
         )
+
+        # Validate against previous fix (if we have one)
+        prev = self._position
+        if prev is not None:
+            # Speed jump filter
+            if speed_mps is not None and prev.speed_mps is not None:
+                new_kmh = speed_mps * 3.6
+                old_kmh = prev.speed_mps * 3.6
+                if abs(new_kmh - old_kmh) > MAX_SPEED_JUMP_KMH:
+                    logger.warning("GPS fix rejected: speed jump %.0f -> %.0f km/h",
+                                    old_kmh, new_kmh)
+                    return None
+
+            # Teleportation filter (only when enough time has passed to compute a meaningful speed)
+            elapsed = pos.timestamp - prev.timestamp
+            if elapsed >= 0.5:
+                dist_m = _haversine_m(prev.latitude, prev.longitude, lat, lon)
+                implied_kmh = (dist_m / elapsed) * 3.6
+                if implied_kmh > MAX_IMPLIED_SPEED_KMH:
+                    logger.warning("GPS fix rejected: implied speed %.0f km/h (teleportation)",
+                                    implied_kmh)
+                    return None
 
         self._position = pos
         self._position_history.append(pos)
