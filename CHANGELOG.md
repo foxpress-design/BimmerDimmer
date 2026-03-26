@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.9 (2026-03-26)
+
+### What's New
+
+- Added confirmation tick logic to `SpeedLimiterController._control_tick`: lowering Vmax now requires the target to be stable for `config.safety.write_confirm_ticks` consecutive ticks before applying, preventing spurious speed limit decreases.
+- Added GPS fix freshness check in `_control_tick`: fixes older than 5 seconds apply `GPS_LOSS_CAP_KMH` and set `degraded_reason = "GPS fix stale"`.
+- Integrated `write_heartbeat()` call at the start of each control tick for watchdog support.
+- Added `ConnectionMonitor` integration to `SpeedLimiterController`: constructor accepts an optional `connection_monitor` parameter, `_apply_vmax` gates DME writes on `should_write_dme`, and records K+DCAN health on success or failure.
+- Added three new fields to `LimiterState`: `transport_states` (dict of transport names to state strings), `dme_write_count` (running DME write count), and `degraded_reason` (human-readable degraded state description).
+- Updated `_control_tick` to refresh `state.transport_states` and `state.dme_write_count` each tick.
+- Pending confirmation state (`_pending_vmax_kmh`, `_pending_ticks`) is reset on GPS loss.
+
 ## 0.3.8 (2026-03-26)
 
 ### What's New

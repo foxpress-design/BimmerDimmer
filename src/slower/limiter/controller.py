@@ -16,7 +16,8 @@ import time
 from dataclasses import dataclass, field
 
 from slower.bmw.e90_dme import E90DME
-from slower.bmw.safety import ABSOLUTE_MAX_VMAX_KMH, GPS_LOSS_CAP_KMH, SafetyManager
+from slower.bmw.safety import ABSOLUTE_MAX_VMAX_KMH, GPS_LOSS_CAP_KMH, ConnectionMonitor, SafetyManager
+from slower.bmw.watchdog import write_heartbeat
 from slower.config import Config
 from slower.gps.provider import GPSProvider
 from slower.gps.speed_limits import SpeedLimitResult, SpeedLimitService
@@ -42,16 +43,21 @@ class LimiterState:
     offset_mph: int = 5
     last_error: str | None = None
     status_messages: list[str] = field(default_factory=list)
+    transport_states: dict[str, str] = field(default_factory=dict)
+    dme_write_count: int = 0
+    degraded_reason: str | None = None
 
 
 class SpeedLimiterController:
     """Bridges GPS speed limit data to BMW DME Vmax control."""
 
-    def __init__(self, config: Config, dme: E90DME | None, gps: GPSProvider) -> None:
+    def __init__(self, config: Config, dme: E90DME | None, gps: GPSProvider,
+                 connection_monitor: ConnectionMonitor | None = None) -> None:
         self.config = config
         self.dme = dme
         self.gps = gps
         self.safety = SafetyManager()
+        self.connection_monitor = connection_monitor or ConnectionMonitor()
         self.speed_limits = SpeedLimitService(
             primary=config.speed_limits.primary,
             google_api_key=config.speed_limits.google_api_key,
@@ -62,6 +68,11 @@ class SpeedLimiterController:
             active_mode=config.limiter.active,
             offset_mph=config.limiter.offset_mph,
         )
+
+        # Confirmation tick tracking
+        self._pending_vmax_kmh: int | None = None
+        self._pending_ticks: int = 0
+        self._confirm_ticks = config.safety.write_confirm_ticks
 
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
@@ -153,12 +164,22 @@ class SpeedLimiterController:
 
     def _control_tick(self) -> None:
         """Single iteration of the control loop."""
+        # Write watchdog heartbeat
+        write_heartbeat()
+
+        # Update dashboard with transport and DME state
+        self.state.transport_states = self.connection_monitor.transport_states
+        if self.dme:
+            self.state.dme_write_count = self.dme.write_count
+
         pos = self.gps.position
 
         # Handle GPS state
         if pos is None:
             self.state.gps_connected = False
             self.state.current_speed_mph = None
+            self._pending_vmax_kmh = None
+            self._pending_ticks = 0
 
             vmax_kmh = self.safety.handle_gps_loss(self.config.limiter.gps_loss_grace_sec)
             self._apply_vmax(vmax_kmh)
@@ -168,20 +189,44 @@ class SpeedLimiterController:
         self.state.gps_connected = True
         self.state.current_speed_mph = pos.speed_mph
 
+        # Check GPS fix freshness (must be < 5s old)
+        if pos.age_seconds > 5.0:
+            self.state.degraded_reason = "GPS fix stale"
+            self._apply_vmax(GPS_LOSS_CAP_KMH)
+            return
+
         # Look up speed limit
         result = self.speed_limits.get_speed_limit(pos.latitude, pos.longitude)
         self._update_state_from_limit(result)
 
         if result.speed_limit_mph is None:
-            # No speed limit data - use max (don't limit)
             self._apply_vmax(ABSOLUTE_MAX_VMAX_KMH)
             return
 
         # Calculate target Vmax
         target_mph = result.speed_limit_mph + self.state.offset_mph
         target_kmh = int(E90DME.mph_to_kmh(target_mph))
-
         self.state.target_vmax_mph = target_mph
+
+        # Confirmation ticks: lowering Vmax requires stable target for N ticks
+        current_kmh = self.state.actual_vmax_kmh or ABSOLUTE_MAX_VMAX_KMH
+        if target_kmh < current_kmh:
+            if self._pending_vmax_kmh == target_kmh:
+                self._pending_ticks += 1
+            else:
+                self._pending_vmax_kmh = target_kmh
+                self._pending_ticks = 1
+
+            if self._pending_ticks < self._confirm_ticks:
+                logger.debug("Confirmation tick %d/%d for Vmax %d",
+                             self._pending_ticks, self._confirm_ticks, target_kmh)
+                return  # Hold current value until confirmed
+        else:
+            # Raising Vmax (less restrictive) applies immediately
+            self._pending_vmax_kmh = None
+            self._pending_ticks = 0
+
+        self.state.degraded_reason = None
         self._apply_vmax(target_kmh)
 
     def _apply_vmax(self, target_kmh: int) -> None:
@@ -192,6 +237,11 @@ class SpeedLimiterController:
         self.state.actual_vmax_kmh = safe_kmh
 
         if not self.state.active_mode or self.dme is None:
+            return
+
+        # Check if K+DCAN connection allows writes
+        if not self.connection_monitor.should_write_dme:
+            self.state.degraded_reason = "K+DCAN connection lost"
             return
 
         # Only write if value actually changed
@@ -205,10 +255,12 @@ class SpeedLimiterController:
                 self.dme.enable_vmax()
                 self.dme.set_vmax(safe_kmh)
             self.safety.handle_dme_success()
+            self.connection_monitor.kdcan_health.record_success()
             self.state.dme_connected = True
         except Exception as e:
             logger.error("DME write failed: %s", e)
             self.safety.handle_dme_failure()
+            self.connection_monitor.kdcan_health.record_failure()
             self.state.dme_connected = False
             self.state.last_error = f"DME: {e}"
 
