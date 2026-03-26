@@ -30,6 +30,12 @@ BimmerDimmer is built with multiple layers of protection for both the driver and
 - Software watchdog (`slower-watchdog`) runs as a separate process. If the main process dies, the watchdog resets the DME to factory Vmax.
 - `slower --reset` recovery command connects to the DME, clears any Vmax limit, and exits. Use after power loss or crashes.
 
+## What's New (v0.3.1)
+
+- Added `GPSTransport` protocol defining the interface all transport implementations must satisfy
+- Added `TransportHealth` for per-transport state tracking (unknown, healthy, degraded, lost) with configurable timeout and failure threshold
+- Added 6 tests covering all `TransportHealth` state transitions
+
 ## What's New (v0.3.0)
 
 - Multi-transport GPS: WiFi HTTP, Bluetooth Low Energy (BLE), and Bluetooth Serial (SPP)
