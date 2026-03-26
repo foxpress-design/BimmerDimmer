@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.4.0 (2026-03-26)
+
+### What's New
+
+- Added `--reset` CLI flag to connect to DME, call `reset_vmax()` from `slower.bmw.recovery`, and exit (recovery mode).
+- Added startup recovery check after DME initialization: calls `check_stale_vmax()` and disables Vmax if a stale limit from a previous crash is detected.
+- Wired WiFi, BLE, and SPP transports at startup with a shared `ConnectionMonitor` instance.
+- Passed `connection_monitor` to `SpeedLimiterController` and `wifi_transport` to `create_app`.
+- Added `remove_heartbeat()` call to the shutdown handler so the watchdog heartbeat file is cleaned up on graceful exit.
+- Updated startup banner to "BimmerDimmer v0.3.0".
+- Verified `slower-watchdog` entry point is present in `pyproject.toml`.
+
 ## 0.3.9 (2026-03-26)
 
 ### What's New

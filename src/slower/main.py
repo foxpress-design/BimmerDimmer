@@ -7,6 +7,7 @@ Usage:
     slower --config /path/to.yaml   # Custom config
     slower --monitor                # Force monitor-only mode (no DME writes)
     slower --no-dme                 # Skip DME connection (GPS + dashboard only)
+    slower --reset                  # Reset DME Vmax to factory default and exit
 """
 
 from __future__ import annotations
@@ -50,19 +51,43 @@ def main() -> None:
         "--port", type=int,
         help="Override web dashboard port",
     )
+    parser.add_argument(
+        "--reset", action="store_true",
+        help="Reset DME Vmax to factory default and exit (recovery mode)",
+    )
     args = parser.parse_args()
 
     config = load_config(args.config)
     setup_logging(config.logging.level, config.logging.file)
 
     logger = logging.getLogger("slower")
-    logger.info("=== Slower v0.1.0 - BMW GPS Speed Limiter ===")
+    logger.info("=== BimmerDimmer v0.3.0 - BMW GPS Speed Limiter ===")
     logger.info("Vehicle: E90 325xi (N52 / %s DME)", config.vehicle.dme_type)
 
     if args.monitor:
         config.limiter.active = False
     if args.port:
         config.web.port = args.port
+
+    # Handle --reset: connect to DME, reset Vmax, and exit
+    if args.reset:
+        from slower.bmw.connection import KDCANConnection
+        from slower.bmw.e90_dme import E90DME
+        from slower.bmw.recovery import reset_vmax
+        from slower.bmw.uds import UDSClient
+
+        logger.info("Reset mode: connecting to DME to restore factory Vmax...")
+        try:
+            conn = KDCANConnection(config.cable)
+            conn.connect()
+            uds = UDSClient(conn)
+            dme = E90DME(uds)
+            reset_vmax(dme)
+            logger.info("Reset complete.")
+        except Exception as e:
+            logger.error("Reset failed: %s", e)
+            sys.exit(1)
+        sys.exit(0)
 
     # Initialize GPS provider
     from slower.gps.provider import GPSProvider
@@ -73,6 +98,7 @@ def main() -> None:
     if not args.no_dme:
         from slower.bmw.connection import KDCANConnection
         from slower.bmw.e90_dme import E90DME
+        from slower.bmw.recovery import check_stale_vmax
         from slower.bmw.uds import UDSClient
 
         try:
@@ -91,6 +117,12 @@ def main() -> None:
                     "DME connected - Current Vmax: %s km/h, Active: %s",
                     status.vmax_speed_kmh, status.vmax_active,
                 )
+                # Startup recovery: check for stale Vmax from a previous crash
+                if check_stale_vmax(dme):
+                    logger.warning(
+                        "Stale Vmax detected from previous session - disabling as safety measure"
+                    )
+                    dme.disable_vmax()
         except Exception as e:
             logger.error("DME connection failed: %s", e)
             logger.info("Continuing in GPS + dashboard only mode")
@@ -98,18 +130,47 @@ def main() -> None:
     else:
         logger.info("DME connection skipped (--no-dme)")
 
+    # Initialize transports
+    from slower.bmw.safety import ConnectionMonitor
+    from slower.transport.wifi import WiFiTransport
+
+    connection_monitor = ConnectionMonitor()
+    wifi_transport = WiFiTransport()
+    wifi_transport.start(gps)
+    connection_monitor.add_gps_transport("wifi")
+
+    if config.transports.ble:
+        try:
+            from slower.transport.ble import BLETransport
+            ble_transport = BLETransport()
+            ble_transport.start(gps)
+            connection_monitor.add_gps_transport("ble")
+        except Exception as e:
+            logger.warning("BLE transport unavailable: %s", e)
+
+    if config.transports.spp:
+        try:
+            from slower.transport.spp import SPPTransport
+            spp_transport = SPPTransport(channel=config.transports.spp_channel)
+            spp_transport.start(gps)
+            connection_monitor.add_gps_transport("spp")
+        except Exception as e:
+            logger.warning("SPP transport unavailable: %s", e)
+
     # Initialize controller
     from slower.limiter.controller import SpeedLimiterController
-    controller = SpeedLimiterController(config, dme, gps)
+    controller = SpeedLimiterController(config, dme, gps, connection_monitor=connection_monitor)
 
     # Create web app
     from slower.web.server import create_app
-    app = create_app(config, controller, gps)
+    app = create_app(config, controller, gps, wifi_transport=wifi_transport)
 
     # Handle shutdown gracefully
     def shutdown(signum, frame):
         logger.info("Shutting down...")
         controller.stop()
+        from slower.bmw.watchdog import remove_heartbeat
+        remove_heartbeat()
         sys.exit(0)
 
     signal.signal(signal.SIGINT, shutdown)
