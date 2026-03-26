@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.5 (2026-03-26)
+
+### What's New
+
+- Added `src/slower/bmw/watchdog.py` with `write_heartbeat`, `read_heartbeat_age`, and `remove_heartbeat` for heartbeat file management in the main slower process.
+- Added `src/slower_watchdog/__init__.py` and `src/slower_watchdog/main.py` as a standalone watchdog process (`slower-watchdog` CLI entry point).
+- The watchdog monitors the heartbeat file and sends a disable_vmax UDS command directly to the DME if the main process goes silent for more than 10 seconds.
+- The standalone watchdog intentionally duplicates minimal K+DCAN framing (no imports from slower) to avoid shared failure modes.
+- Registered `slower-watchdog` as a project script entry point in `pyproject.toml`.
+
 ## 0.3.4 (2026-03-26)
 
 ### What's New
