@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.3 (2026-03-26)
+
+### What's New
+
+- Added `src/slower/transport/usb.py` with `USBTransport` class for USB-C tethering transport.
+- `USBTransport` monitors a USB network interface (default `usb0`) by reading `/sys/class/net/{interface}/operstate` on Linux, recording health via `TransportHealth`.
+- GPS data continues to flow through the existing HTTP endpoint; this transport only tracks whether the USB network link is active.
+- Added `tests/test_usb_transport.py` with six tests covering name, default/custom interface, interface-up detection, operstate file reading, and initial health state.
+
 ## 0.4.2 (2026-03-26)
 
 ### What's New
