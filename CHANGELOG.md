@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.3.3 (2026-03-26)
+
+### What's New
+
+- Added `ConnectionMonitor` to `src/slower/bmw/safety.py` for tracking health of all system connections (K+DCAN cable and GPS transports).
+- `ConnectionMonitor` aggregates GPS transport state (healthy if any transport is healthy) and exposes `should_write_dme` to gate DME writes on K+DCAN health.
+- Added `tests/test_connection_monitor.py` with six tests covering initial state, GPS aggregation, K+DCAN failure threshold, and DME write gating.
+
 ## 0.3.2 (2026-03-26)
 
 ### What's New

@@ -10,6 +10,8 @@ import logging
 import time
 from dataclasses import dataclass, field
 
+from slower.transport.health import TransportHealth
+
 logger = logging.getLogger(__name__)
 
 # Hard safety limits - these are NOT configurable
@@ -152,3 +154,51 @@ class SafetyManager:
         if len(self.state.fault_history) > SafetyState.MAX_FAULT_HISTORY:
             self.state.fault_history = self.state.fault_history[-SafetyState.MAX_FAULT_HISTORY :]
         logger.warning("FAULT: %s", msg)
+
+
+class ConnectionMonitor:
+    """Tracks health of all system connections."""
+
+    def __init__(self) -> None:
+        self._gps_transports: dict[str, TransportHealth] = {}
+        self.kdcan_health = TransportHealth(name="kdcan", timeout_sec=10.0)
+
+    def add_gps_transport(self, name: str, timeout_sec: float = 10.0) -> None:
+        """Register a GPS transport to monitor."""
+        self._gps_transports[name] = TransportHealth(name=name, timeout_sec=timeout_sec)
+
+    def record_gps_success(self, transport_name: str) -> None:
+        """Record a successful GPS fix from a transport."""
+        if transport_name in self._gps_transports:
+            self._gps_transports[transport_name].record_success()
+
+    def record_gps_failure(self, transport_name: str) -> None:
+        """Record a GPS transport failure."""
+        if transport_name in self._gps_transports:
+            self._gps_transports[transport_name].record_failure()
+
+    @property
+    def gps_aggregate_state(self) -> str:
+        """Aggregate GPS state: healthy if any transport is healthy."""
+        if not self._gps_transports:
+            return "unknown"
+        states = [t.state for t in self._gps_transports.values()]
+        if "healthy" in states:
+            return "healthy"
+        if "degraded" in states:
+            return "degraded"
+        if any(s != "unknown" for s in states):
+            return "lost"
+        return "unknown"
+
+    @property
+    def should_write_dme(self) -> bool:
+        """Whether it is safe to write to the DME right now."""
+        return self.kdcan_health.state in ("healthy", "degraded")
+
+    @property
+    def transport_states(self) -> dict[str, str]:
+        """Get all transport states for the dashboard."""
+        result = {name: t.state for name, t in self._gps_transports.items()}
+        result["kdcan"] = self.kdcan_health.state
+        return result

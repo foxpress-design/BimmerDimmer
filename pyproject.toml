@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "slower"
-version = "0.3.2"
+version = "0.3.3"
 description = "GPS-based speed limiter for 2006 BMW 325xi (E90 N52) via K+DCAN cable"
 readme = "README.md"
 license = {text = "MIT"}
