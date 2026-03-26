@@ -8,6 +8,11 @@
 - Added `SafetyExtConfig` dataclass with fields: `max_gps_accuracy_m`, `max_speed_jump_kmh`, `write_confirm_ticks`, `max_writes_per_session`, `watchdog_heartbeat_sec`, and `watchdog_timeout_sec`.
 - Wired both new configs into the `Config` dataclass as `transports` and `safety` fields with appropriate defaults.
 - Added parsing in `load_config()` for both new sections from YAML config files.
+- Added `src/slower/transport/wifi.py` with `WiFiTransport` class wrapping the Flask GPS endpoint with health tracking via `TransportHealth`.
+- `WiFiTransport.handle_update()` delegates to `GPSProvider.update()` and records success or failure on the health tracker.
+- Updated `create_app()` in `src/slower/web/server.py` to accept an optional `wifi_transport` parameter.
+- When `wifi_transport` is provided, `POST /api/gps` delegates to it; otherwise falls back to calling `gps.update()` directly (backward compatible).
+- The `/api/gps` endpoint now handles `None` returns from `update()` (fix rejected by validation) with a descriptive JSON response instead of raising an error.
 
 ## 0.3.5 (2026-03-26)
 

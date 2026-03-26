@@ -15,6 +15,8 @@ from typing import TYPE_CHECKING
 
 from flask import Flask, jsonify, render_template, request
 
+from slower.transport.wifi import WiFiTransport
+
 if TYPE_CHECKING:
     from slower.config import Config
     from slower.gps.provider import GPSProvider
@@ -27,6 +29,7 @@ def create_app(
     config: Config,
     controller: SpeedLimiterController,
     gps: GPSProvider,
+    wifi_transport: WiFiTransport | None = None,
 ) -> Flask:
     """Create and configure the Flask application."""
 
@@ -49,13 +52,24 @@ def create_app(
             return jsonify({"error": "No JSON body"}), 400
 
         try:
-            pos = gps.update(
-                lat=float(data["latitude"]),
-                lon=float(data["longitude"]),
-                speed_mps=data.get("speed"),
-                heading=data.get("heading"),
-                accuracy_m=float(data.get("accuracy", 50)),
-            )
+            if wifi_transport:
+                pos = wifi_transport.handle_update(
+                    lat=float(data["latitude"]),
+                    lon=float(data["longitude"]),
+                    speed_mps=data.get("speed"),
+                    heading=data.get("heading"),
+                    accuracy_m=float(data.get("accuracy", 50)),
+                )
+            else:
+                pos = gps.update(
+                    lat=float(data["latitude"]),
+                    lon=float(data["longitude"]),
+                    speed_mps=data.get("speed"),
+                    heading=data.get("heading"),
+                    accuracy_m=float(data.get("accuracy", 50)),
+                )
+            if pos is None:
+                return jsonify({"ok": True, "position": None, "note": "fix rejected by validation"})
             return jsonify({
                 "ok": True,
                 "position": {
