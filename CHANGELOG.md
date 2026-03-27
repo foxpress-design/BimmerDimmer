@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.4.4 (2026-03-27)
+
+### What's New
+- Added session history for development continuity
+
 ## 0.4.3 (2026-03-26)
 
 ### What's New
